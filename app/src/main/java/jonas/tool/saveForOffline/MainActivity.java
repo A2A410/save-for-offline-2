@@ -192,38 +192,36 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
 		// Handle presses on the action bar items
-		switch (item.getItemId()) {
-			case R.id.action_add:
-				Intent i = new Intent(getApplicationContext(), AddActivity.class);
-				startActivity(i);
-				return true;
-				
-				case R.id.action_sort_by:
-				AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-				builder.setSingleChoiceItems(R.array.sort_by, DisplayAdapter.SortOrder.toInt(sortOrder), new DialogInterface.OnClickListener() {
-						public void onClick(DialogInterface dialog, int which) {
-							sortOrder = DisplayAdapter.SortOrder.fromInt(which);
-							
-							SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(MainActivity.this).edit();
-							editor.putInt("current_sort_order", which);
-							editor.commit();
-							
-							displayData(searchQuery);
-							dialogSortItemsBy.cancel();
-						}
-					});
-				dialogSortItemsBy = builder.create();
-				dialogSortItemsBy.show();
+		int itemId = item.getItemId();
+		if (itemId == R.id.action_add) {
+			Intent i = new Intent(getApplicationContext(), AddActivity.class);
+			startActivity(i);
+			return true;
+		} else if (itemId == R.id.action_sort_by) {
+			AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+			builder.setSingleChoiceItems(R.array.sort_by, DisplayAdapter.SortOrder.toInt(sortOrder), new DialogInterface.OnClickListener() {
+				public void onClick(DialogInterface dialog, int which) {
+					sortOrder = DisplayAdapter.SortOrder.fromInt(which);
 
-				return true;
+					SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(MainActivity.this).edit();
+					editor.putInt("current_sort_order", which);
+					editor.commit();
 
-			case R.id.ic_action_settings:
-				Intent settings = new Intent(this, Preferences.class);
-				startActivityForResult(settings, 1);
+					displayData(searchQuery);
+					dialogSortItemsBy.cancel();
+				}
+			});
+			dialogSortItemsBy = builder.create();
+			dialogSortItemsBy.show();
 
-				return true;
-			default:
-				return super.onOptionsItemSelected(item);
+			return true;
+		} else if (itemId == R.id.ic_action_settings) {
+			Intent settings = new Intent(this, Preferences.class);
+			startActivityForResult(settings, 1);
+
+			return true;
+		} else {
+			return super.onOptionsItemSelected(item);
 		}
 	}
 
@@ -351,37 +349,36 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 
 		@Override
         public boolean onActionItemClicked(final ActionMode mode, MenuItem item) {
+			int itemId = item.getItemId();
+			if (itemId == R.id.action_rename) {
+				AlertDialog.Builder rename_dialog = new AlertDialog.Builder(MainActivity.this);
+				View layout = getLayoutInflater().inflate(R.layout.rename_dialog, null);
+				rename_dialog.setView(layout);
+				e = (EditText) layout.findViewById(R.id.rename_dialog_edit);
+				TextView t = (TextView) layout.findViewById(R.id.rename_dialog_text);
+				if (gridAdapter.selectedViewsPositions.size() == 1) {
+					e.setText(gridAdapter.getPropertiesByPosition(gridAdapter.selectedViewsPositions.get(0), Database.TITLE));
+					e.selectAll();
 
-			switch (item.getItemId()) {
-				case R.id.action_rename:
-					AlertDialog.Builder rename_dialog = new AlertDialog.Builder(MainActivity.this);
-					View layout = getLayoutInflater().inflate(R.layout.rename_dialog, null);
-					rename_dialog.setView(layout);
-					e = (EditText) layout.findViewById(R.id.rename_dialog_edit);
-					TextView t = (TextView) layout.findViewById(R.id.rename_dialog_text);
-					if (gridAdapter.selectedViewsPositions.size() == 1) {
-						e.setText(gridAdapter.getPropertiesByPosition(gridAdapter.selectedViewsPositions.get(0), Database.TITLE));
-						e.selectAll();
-					
-					} else {
-						
-						t.setText("Enter new title for these " + gridAdapter.selectedViewsPositions.size() + " saved pages :");
-					}
-					
-					
-					rename_dialog.setPositiveButton("Rename",
+				} else {
+
+					t.setText("Enter new title for these " + gridAdapter.selectedViewsPositions.size() + " saved pages :");
+				}
+
+
+				rename_dialog.setPositiveButton("Rename",
 						new DialogInterface.OnClickListener() {
 
 							public void onClick(DialogInterface dialog, int which) {
 								mHelper = new Database(MainActivity.this);
 								dataBase = mHelper.getWritableDatabase();
 
-								for (Integer position: gridAdapter.selectedViewsPositions) {
-									ContentValues values=new ContentValues();
-									values.put(Database.TITLE, e.getText().toString() );
+								for (Integer position : gridAdapter.selectedViewsPositions) {
+									ContentValues values = new ContentValues();
+									values.put(Database.TITLE, e.getText().toString());
 									dataBase.update(Database.TABLE_NAME, values, Database.ID + "=" + gridAdapter.getPropertiesByPosition(position, Database.ID), null);
 								}
-								
+
 								if (gridAdapter.selectedViewsPositions.size() == 1) {
 									Toast.makeText(MainActivity.this, "Saved page renamed", Toast.LENGTH_LONG).show();
 								} else {
@@ -393,49 +390,45 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 								mode.finish();
 							}
 						});
-						
-					rename_dialog.setNegativeButton("Cancel",
+
+				rename_dialog.setNegativeButton("Cancel",
 						new DialogInterface.OnClickListener() {
 							public void onClick(DialogInterface dialog, int which) {
 								mode.finish();
 							}
 						});
-					AlertDialog rename_dialog_alert = rename_dialog.create();
-					rename_dialog_alert.show();
+				AlertDialog rename_dialog_alert = rename_dialog.create();
+				rename_dialog_alert.show();
 				return true;
-				case R.id.action_delete:
+			} else if (itemId == R.id.action_delete) {
 
 
-
-					AlertDialog.Builder build;
-					build = new AlertDialog.Builder(MainActivity.this);
-					if (gridAdapter.selectedViewsPositions.size() == 1) {
-						build.setMessage("Do you want to delete ?\r\n" + gridAdapter.getPropertiesByPosition(gridAdapter.selectedViewsPositions.get(0), Database.TITLE));
-					} else {
-						build.setMessage("Delete these " + gridAdapter.selectedViewsPositions.size() + " saved pages ?");
-					}
-					build.setPositiveButton("Delete",
+				AlertDialog.Builder build;
+				build = new AlertDialog.Builder(MainActivity.this);
+				if (gridAdapter.selectedViewsPositions.size() == 1) {
+					build.setMessage("Do you want to delete ?\r\n" + gridAdapter.getPropertiesByPosition(gridAdapter.selectedViewsPositions.get(0), Database.TITLE));
+				} else {
+					build.setMessage("Delete these " + gridAdapter.selectedViewsPositions.size() + " saved pages ?");
+				}
+				build.setPositiveButton("Delete",
 						new DialogInterface.OnClickListener() {
 							public void onClick(DialogInterface dialog, int which) {
 								new deleteItemsTask().execute(gridAdapter.selectedViewsPositions.toArray());
-								mode.finish();	
+								mode.finish();
 							}
 						});
 
-					build.setNegativeButton("Cancel",
+				build.setNegativeButton("Cancel",
 						new DialogInterface.OnClickListener() {
 
-							public void onClick(DialogInterface dialog,	int which) {
+							public void onClick(DialogInterface dialog, int which) {
 								dialog.cancel();
 								mode.finish();
 							}
 						});
-					AlertDialog alert = build.create();
-					alert.show();
-					break;
-				default:
-					break;
-            }
+				AlertDialog alert = build.create();
+				alert.show();
+			}
 			return true;
 		}
 		

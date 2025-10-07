@@ -241,11 +241,11 @@ public class DisplayAdapter extends BaseAdapter {
 		switch ((String) imageView.getTag()) {
 			case "show:icon":
 				File icon = new File(new File(dbCursor.getString(dbCursor.getColumnIndex(Database.THUMBNAIL))).getParent(), "saveForOffline_icon.png");
-				Picasso.with(mContext).load(icon).error(R.drawable.icon_website_large).into(imageView);
+				Picasso.get().load(icon).error(R.drawable.icon_website_large).into(imageView);
 			break;
 			case "show:thumbnail":
 				File image = new File(dbCursor.getString(dbCursor.getColumnIndex(Database.THUMBNAIL)));
-				Picasso.with(mContext).load(image).placeholder(R.drawable.placeholder).into(imageView);
+				Picasso.get().load(image).placeholder(R.drawable.placeholder).into(imageView);
 			break;
 			default:
 				Log.e("displayAdapter", "Bug: image / icon not set due to imageView.getTag() returning bad value:" + imageView.getTag());
