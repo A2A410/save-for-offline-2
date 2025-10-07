@@ -178,6 +178,7 @@ public class ViewActivity extends AppCompatActivity {
 		int itemId = item.getItemId();
 		if (itemId == R.id.ic_action_settings) {
 			Intent settings = new Intent(getApplicationContext(), SettingsActivity.class);
+			Intent settings = new Intent(getApplicationContext(), Preferences.class);
 			startActivityForResult(settings, 1);
 			return true;
 		} else if (itemId == R.id.action_save_page_properties) {
@@ -195,6 +196,7 @@ public class ViewActivity extends AppCompatActivity {
 			Intent newIntent = new Intent(Intent.ACTION_VIEW);
 			newIntent.setDataAndType(Uri.fromFile(new File(fileLocation)), "text/html");
 			newIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+			newIntent.setFlags(newIntent.FLAG_ACTIVITY_NEW_TASK);
 			try {
 				startActivity(newIntent);
 			} catch (android.content.ActivityNotFoundException e) {
@@ -202,6 +204,13 @@ public class ViewActivity extends AppCompatActivity {
 			}
 			return true;
 		} else if (itemId == R.id.action_delete) {
+
+			AlertDialog.Builder build;
+			build = new AlertDialog.Builder(ViewActivity.this);
+			build.setTitle("Delete ?");
+			build.setMessage(title);
+			build.setPositiveButton("Delete",
+					new DialogInterface.OnClickListener() {
 
 			AlertDialog.Builder build;
 			build = new AlertDialog.Builder(ViewActivity.this);
@@ -224,6 +233,11 @@ public class ViewActivity extends AppCompatActivity {
 
 			build.setNegativeButton("Cancel",
 					(dialog, which) -> dialog.cancel());
+					new DialogInterface.OnClickListener() {
+						public void onClick(DialogInterface dialog, int which) {
+							dialog.cancel();
+						}
+					});
 			AlertDialog alert = build.create();
 			alert.show();
 			return true;

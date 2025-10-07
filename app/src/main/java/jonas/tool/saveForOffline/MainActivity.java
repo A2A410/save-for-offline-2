@@ -235,6 +235,27 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
 			startActivityForResult(settings, 1);
 
 			return true;
+			builder.setSingleChoiceItems(R.array.sort_by, DisplayAdapter.SortOrder.toInt(sortOrder), new DialogInterface.OnClickListener() {
+				public void onClick(DialogInterface dialog, int which) {
+					sortOrder = DisplayAdapter.SortOrder.fromInt(which);
+
+					SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(MainActivity.this).edit();
+					editor.putInt("current_sort_order", which);
+					editor.commit();
+
+					displayData(searchQuery);
+					dialogSortItemsBy.cancel();
+				}
+			});
+			dialogSortItemsBy = builder.create();
+			dialogSortItemsBy.show();
+
+			return true;
+		} else if (itemId == R.id.ic_action_settings) {
+			Intent settings = new Intent(this, Preferences.class);
+			startActivityForResult(settings, 1);
+
+			return true;
 		} else {
 			return super.onOptionsItemSelected(item);
 		}
@@ -363,6 +384,8 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
 				rename_dialog.setView(layout);
 				e = layout.findViewById(R.id.rename_dialog_edit);
 				TextView t = layout.findViewById(R.id.rename_dialog_text);
+				e = (EditText) layout.findViewById(R.id.rename_dialog_edit);
+				TextView t = (TextView) layout.findViewById(R.id.rename_dialog_text);
 				if (gridAdapter.selectedViewsPositions.size() == 1) {
 					e.setText(gridAdapter.getPropertiesByPosition(gridAdapter.selectedViewsPositions.get(0), Database.TITLE));
 					e.selectAll();
@@ -388,6 +411,34 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
 								Toast.makeText(MainActivity.this, "Saved page renamed", Toast.LENGTH_LONG).show();
 							} else {
 								Toast.makeText(MainActivity.this, "Renamed " + gridAdapter.selectedViewsPositions.size() + " saved pages", Toast.LENGTH_LONG).show();
+						new DialogInterface.OnClickListener() {
+
+							public void onClick(DialogInterface dialog, int which) {
+								mHelper = new Database(MainActivity.this);
+								dataBase = mHelper.getWritableDatabase();
+
+								for (Integer position : gridAdapter.selectedViewsPositions) {
+									ContentValues values = new ContentValues();
+									values.put(Database.TITLE, e.getText().toString());
+									dataBase.update(Database.TABLE_NAME, values, Database.ID + "=" + gridAdapter.getPropertiesByPosition(position, Database.ID), null);
+								}
+
+								if (gridAdapter.selectedViewsPositions.size() == 1) {
+									Toast.makeText(MainActivity.this, "Saved page renamed", Toast.LENGTH_LONG).show();
+								} else {
+									Toast.makeText(MainActivity.this, "Renamed " + gridAdapter.selectedViewsPositions.size() + " saved pages", Toast.LENGTH_LONG).show();
+								}
+
+								dataBase.close();
+								displayData("");
+								mode.finish();
+							}
+						});
+
+				rename_dialog.setNegativeButton("Cancel",
+						new DialogInterface.OnClickListener() {
+							public void onClick(DialogInterface dialog, int which) {
+								mode.finish();
 							}
 
 							dataBase.close();
@@ -420,6 +471,20 @@ public class MainActivity extends AppCompatActivity implements SearchView.OnQuer
 						(dialog, which) -> {
 							dialog.cancel();
 							mode.finish();
+						new DialogInterface.OnClickListener() {
+							public void onClick(DialogInterface dialog, int which) {
+								new deleteItemsTask().execute(gridAdapter.selectedViewsPositions.toArray());
+								mode.finish();
+							}
+						});
+
+				build.setNegativeButton("Cancel",
+						new DialogInterface.OnClickListener() {
+
+							public void onClick(DialogInterface dialog, int which) {
+								dialog.cancel();
+								mode.finish();
+							}
 						});
 				AlertDialog alert = build.create();
 				alert.show();

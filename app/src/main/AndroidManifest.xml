@@ -43,6 +43,7 @@
 
 		<activity
             android:name=".SettingsActivity"
+            android:name=".Preferences"
             android:exported="true"
 			android:parentActivityName=".MainActivity">
 			<intent-filter>
