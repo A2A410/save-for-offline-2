@@ -36,22 +36,39 @@
 
 package jonas.tool.saveForOffline;
 
-import android.app.*;
-import android.content.*;
-import android.database.sqlite.*;
-import android.graphics.*;
+import android.content.ContentValues;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Color;
 import android.net.Uri;
-import android.os.*;
-import android.preference.*;
-import android.view.*;
-import android.webkit.MimeTypeMap;
-import android.widget.*;
-import android.widget.AdapterView.*;
-import java.io.*;
-import java.util.*;
-import java.util.concurrent.*;
+import android.os.AsyncTask;
+import android.os.Bundle;
+import android.preference.PreferenceManager;
+import android.view.Gravity;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.EditText;
+import android.widget.GridView;
+import android.widget.ListView;
+import android.widget.TextView;
+import android.widget.Toast;
 
-public class MainActivity extends Activity implements SearchView.OnQueryTextListener {
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SearchView;
+
+import java.io.File;
+import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class MainActivity extends AppCompatActivity implements SearchView.OnQueryTextListener {
 
 
 	private DisplayAdapter gridAdapter;
@@ -67,7 +84,6 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 	private GridView mainGrid;
 	private SearchView mSearchView;
 	private String searchQuery = "";
-	private ProgressDialog pageLoadDialog;
 	private AlertDialog dialogSortItemsBy;
 	private ActionBar actionbar;
 
@@ -95,19 +111,15 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 		mainGrid.setMultiChoiceModeListener(new ModeCallback());
 
 		int list_layout_type = Integer.parseInt(sharedPref.getString("layout" , "1"));
-		switch (list_layout_type) {
-			case 1: break;
-			case 2: mainGrid.setNumColumns(-1); break;
-			case 4: mainGrid.setNumColumns(1); break;
-			case 5: mainGrid.setNumColumns(1); break;
-			case 6: mainGrid.setNumColumns(1); break;
-			default:
+		if (list_layout_type == 2) {
+			mainGrid.setNumColumns(-1);
+		} else if (list_layout_type == 4 || list_layout_type == 5 || list_layout_type == 6) {
+			mainGrid.setNumColumns(1);
 		}
 		
-		sortOrder = sortOrder.fromInt(sharedPref.getInt("current_sort_order", 0));
+		sortOrder = DisplayAdapter.SortOrder.fromInt(sharedPref.getInt("current_sort_order", 0));
 
-		pageLoadDialog = new ProgressDialog(MainActivity.this);
-		actionbar = getActionBar();
+		actionbar = getSupportActionBar();
 
 		setUpGridClickListener();
 
@@ -151,9 +163,15 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 		searchQuery = newText;
 		displayData(newText);
 		if (newText.length() == 0) {
-			actionbar.setSubtitle(R.string.action_bar_subtitle_showing_all);
-		} else { 
-			if (gridAdapter.getCount() == 1) {actionbar.setSubtitle(R.string.one_search_result);} else if (gridAdapter.getCount() == 0) {actionbar.setSubtitle(R.string.no_search_results);} else {actionbar.setSubtitle(gridAdapter.getCount() + " " + getResources().getString(R.string.num_search_results));}
+			Objects.requireNonNull(actionbar).setSubtitle(R.string.action_bar_subtitle_showing_all);
+		} else {
+			if (gridAdapter.getCount() == 1) {
+				Objects.requireNonNull(actionbar).setSubtitle(R.string.one_search_result);
+			} else if (gridAdapter.getCount() == 0) {
+				Objects.requireNonNull(actionbar).setSubtitle(R.string.no_search_results);
+			} else {
+				Objects.requireNonNull(actionbar).setSubtitle(gridAdapter.getCount() + " " + getResources().getString(R.string.num_search_results));
+			}
 		}
         return false;
     }
@@ -180,11 +198,10 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 	protected void onResume() {
 		super.onResume();
 
-		pageLoadDialog.cancel();
 		displayData(searchQuery);
 		mainGrid.setSelection(scrollPosition);
 		if (searchQuery.length() == 0) {
-			actionbar.setSubtitle(R.string.action_bar_subtitle_showing_all);
+			Objects.requireNonNull(actionbar).setSubtitle(R.string.action_bar_subtitle_showing_all);
 		}
 
 	}
@@ -199,6 +216,25 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 			return true;
 		} else if (itemId == R.id.action_sort_by) {
 			AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+			builder.setSingleChoiceItems(R.array.sort_by, DisplayAdapter.SortOrder.toInt(sortOrder), (dialog, which) -> {
+				sortOrder = DisplayAdapter.SortOrder.fromInt(which);
+
+				SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(MainActivity.this).edit();
+				editor.putInt("current_sort_order", which);
+				editor.apply();
+
+				displayData(searchQuery);
+				dialogSortItemsBy.cancel();
+			});
+			dialogSortItemsBy = builder.create();
+			dialogSortItemsBy.show();
+
+			return true;
+		} else if (itemId == R.id.ic_action_settings) {
+			Intent settings = new Intent(this, SettingsActivity.class);
+			startActivityForResult(settings, 1);
+
+			return true;
 			builder.setSingleChoiceItems(R.array.sort_by, DisplayAdapter.SortOrder.toInt(sortOrder), new DialogInterface.OnClickListener() {
 				public void onClick(DialogInterface dialog, int which) {
 					sortOrder = DisplayAdapter.SortOrder.fromInt(which);
@@ -234,11 +270,6 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 
 					clickedView.setBackgroundColor(Color.parseColor("#FFC107"));
 
-					pageLoadDialog.setMessage("Please wait while loading...");
-					pageLoadDialog.setIndeterminate(true);
-					pageLoadDialog.setCancelable(false);
-
-					pageLoadDialog.show();
                     String filepath = gridAdapter.getPropertiesByPosition(position, Database.FILE_LOCATION);
 
 					if (defaultHtmlViewer) {
@@ -258,7 +289,6 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 
 							startActivity(i);
 						} catch (Exception e){
-							pageLoadDialog.cancel();
 							Toast.makeText(MainActivity.this, "No application to open  file", Toast.LENGTH_SHORT).show();
 						}
 					}
@@ -267,10 +297,8 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 	}
 
     private void startDefaultHtmlViewer(String filepath) {
-		pageLoadDialog.cancel();
-
 		final File file = new File(filepath);
-		MimeTypeMap myMime = MimeTypeMap.getSingleton();
+		android.webkit.MimeTypeMap myMime = android.webkit.MimeTypeMap.getSingleton();
 		String mimeType = myMime.getMimeTypeFromExtension(getFileExtension(filepath).substring(1));
 
 		Intent i = new Intent();
@@ -354,6 +382,8 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 				AlertDialog.Builder rename_dialog = new AlertDialog.Builder(MainActivity.this);
 				View layout = getLayoutInflater().inflate(R.layout.rename_dialog, null);
 				rename_dialog.setView(layout);
+				e = layout.findViewById(R.id.rename_dialog_edit);
+				TextView t = layout.findViewById(R.id.rename_dialog_text);
 				e = (EditText) layout.findViewById(R.id.rename_dialog_edit);
 				TextView t = (TextView) layout.findViewById(R.id.rename_dialog_text);
 				if (gridAdapter.selectedViewsPositions.size() == 1) {
@@ -367,6 +397,20 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 
 
 				rename_dialog.setPositiveButton("Rename",
+						(dialog, which) -> {
+							mHelper = new Database(MainActivity.this);
+							dataBase = mHelper.getWritableDatabase();
+
+							for (Integer position : gridAdapter.selectedViewsPositions) {
+								ContentValues values = new ContentValues();
+								values.put(Database.TITLE, e.getText().toString());
+								dataBase.update(Database.TABLE_NAME, values, Database.ID + "=" + gridAdapter.getPropertiesByPosition(position, Database.ID), null);
+							}
+
+							if (gridAdapter.selectedViewsPositions.size() == 1) {
+								Toast.makeText(MainActivity.this, "Saved page renamed", Toast.LENGTH_LONG).show();
+							} else {
+								Toast.makeText(MainActivity.this, "Renamed " + gridAdapter.selectedViewsPositions.size() + " saved pages", Toast.LENGTH_LONG).show();
 						new DialogInterface.OnClickListener() {
 
 							public void onClick(DialogInterface dialog, int which) {
@@ -396,7 +440,14 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 							public void onClick(DialogInterface dialog, int which) {
 								mode.finish();
 							}
+
+							dataBase.close();
+							displayData("");
+							mode.finish();
 						});
+
+				rename_dialog.setNegativeButton("Cancel",
+						(dialog, which) -> mode.finish());
 				AlertDialog rename_dialog_alert = rename_dialog.create();
 				rename_dialog_alert.show();
 				return true;
@@ -411,6 +462,15 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 					build.setMessage("Delete these " + gridAdapter.selectedViewsPositions.size() + " saved pages ?");
 				}
 				build.setPositiveButton("Delete",
+						(dialog, which) -> {
+							deleteItems(gridAdapter.selectedViewsPositions.toArray());
+							mode.finish();
+						});
+
+				build.setNegativeButton("Cancel",
+						(dialog, which) -> {
+							dialog.cancel();
+							mode.finish();
 						new DialogInterface.OnClickListener() {
 							public void onClick(DialogInterface dialog, int which) {
 								new deleteItemsTask().execute(gridAdapter.selectedViewsPositions.toArray());
@@ -431,53 +491,31 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 			}
 			return true;
 		}
-		
-		private class deleteItemsTask extends AsyncTask<Object, Integer, Integer> {
-			ProgressDialog pd = null;
-			int currentProgress = 0;
-			
-			@Override
-			protected Integer doInBackground(Object[] selectedPositions) {
+
+		private void deleteItems(final Object[] selectedPositions) {
+			ExecutorService executor = Executors.newSingleThreadExecutor();
+			android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+
+			executor.execute(() -> {
+				// Background work here
 				dataBase = new Database(MainActivity.this).getWritableDatabase();
-				
+				int deletedCount = 0;
 				for (final Object position : selectedPositions) {
 					String fileLocation = gridAdapter.getPropertiesByPosition((Integer) position, Database.FILE_LOCATION);
 					DirectoryHelper.deleteDirectory(new File(fileLocation).getParentFile());
-					
+
 					dataBase.delete(Database.TABLE_NAME, Database.ID + "=" + gridAdapter.getPropertiesByPosition((Integer)position, Database.ID), null);
-					currentProgress++;
-					publishProgress(currentProgress);
+					deletedCount++;
 				}
 				dataBase.close();
-				return selectedPositions.length;
-			}
+				final int finalDeletedCount = deletedCount;
 
-			@Override
-			protected void onPreExecute() {
-				pd = new ProgressDialog(MainActivity.this);
-				pd.setMessage("Deleting items...");
-				pd.setIndeterminate(false);
-				pd.setProgressStyle(ProgressDialog.STYLE_HORIZONTAL);
-				pd.setMax(gridAdapter.selectedViewsPositions.size());
-				pd.setCancelable(false);
-				pd.setCanceledOnTouchOutside(false);
-
-				pd.show();
-			}
-
-			@Override
-			protected void onPostExecute(Integer result) {
-				pd.hide();
-				pd.cancel();	
-				displayData("");
-				Toast.makeText(MainActivity.this, "Deleted " + result + " saved pages", Toast.LENGTH_LONG).show();
-			}
-
-			@Override
-			protected void onProgressUpdate(Integer[] values) {
-				pd.setProgress(values[0]);
-			}
-			
+				handler.post(() -> {
+					// UI Thread work here
+					displayData("");
+					Toast.makeText(MainActivity.this, "Deleted " + finalDeletedCount + " saved pages", Toast.LENGTH_LONG).show();
+				});
+			});
 		}
 
 		@Override
@@ -500,20 +538,16 @@ public class MainActivity extends Activity implements SearchView.OnQueryTextList
 
 			final int checkedCount = gridAdapter.selectedViewsPositions.size();
 
-            switch (checkedCount) {
-                case 0:
-                    mode.setSubtitle("Tap to select items");
-					findViewById(R.id.action_delete).setEnabled(false);
-                    break;
-                case 1:
-                    mode.setSubtitle("One item selected");
-					findViewById(R.id.action_delete).setEnabled(true);
-                    break;
-                default:
-                    mode.setSubtitle(checkedCount + " items selected");
-					findViewById(R.id.action_delete).setEnabled(true);
-                    break;
-            }
+			if (checkedCount == 0) {
+				mode.setSubtitle("Tap to select items");
+				Objects.requireNonNull(mode.getMenu().findItem(R.id.action_delete)).setEnabled(false);
+			} else if (checkedCount == 1) {
+				mode.setSubtitle("One item selected");
+				Objects.requireNonNull(mode.getMenu().findItem(R.id.action_delete)).setEnabled(true);
+			} else {
+				mode.setSubtitle(checkedCount + " items selected");
+				Objects.requireNonNull(mode.getMenu().findItem(R.id.action_delete)).setEnabled(true);
+			}
         }
 
 	}

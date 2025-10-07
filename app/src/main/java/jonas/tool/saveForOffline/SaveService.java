@@ -105,7 +105,7 @@ public class SaveService extends Service {
 
 		public PageSaveTask(String pageUrl) {
 			this.pageUrl = pageUrl;
-			this.destinationDirectory = DirectoryHelper.getDestinationDirectory(sharedPreferences);
+			this.destinationDirectory = DirectoryHelper.getDestinationDirectory(SaveService.this);
 		}
 
 		@Override
