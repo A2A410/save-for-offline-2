@@ -164,43 +164,39 @@ public class ViewActivity extends Activity {
 
 	public boolean onOptionsItemSelected(MenuItem item) {
 		// Handle presses on the action bar items
-		switch (item.getItemId()) {
-			case R.id.ic_action_settings:
-				Intent settings = new Intent(getApplicationContext(), Preferences.class);
-				startActivityForResult(settings, 1);
-				return true;
-				
-			case R.id.action_save_page_properties:
-				showPropertiesDialog();
-				return true;
-				
-			case R.id.action_open_in_external:
-				Intent incomingIntent = getIntent();
+		int itemId = item.getItemId();
+		if (itemId == R.id.ic_action_settings) {
+			Intent settings = new Intent(getApplicationContext(), Preferences.class);
+			startActivityForResult(settings, 1);
+			return true;
+		} else if (itemId == R.id.action_save_page_properties) {
+			showPropertiesDialog();
+			return true;
+		} else if (itemId == R.id.action_open_in_external) {
+			Intent incomingIntent = getIntent();
 
-				Uri uri = Uri.parse(incomingIntent.getStringExtra(Database.ORIGINAL_URL));
-				Intent startBrowserIntent = new Intent(Intent.ACTION_VIEW, uri);
-				startActivity(startBrowserIntent);
+			Uri uri = Uri.parse(incomingIntent.getStringExtra(Database.ORIGINAL_URL));
+			Intent startBrowserIntent = new Intent(Intent.ACTION_VIEW, uri);
+			startActivity(startBrowserIntent);
 
-				return true;
+			return true;
+		} else if (itemId == R.id.action_open_file_in_external) {
+			Intent newIntent = new Intent(Intent.ACTION_VIEW);
+			newIntent.setDataAndType(Uri.fromFile(new File(fileLocation)), "text/html");
+			newIntent.setFlags(newIntent.FLAG_ACTIVITY_NEW_TASK);
+			try {
+				startActivity(newIntent);
+			} catch (android.content.ActivityNotFoundException e) {
+				Toast.makeText(this, "No installed app can open HTML files", Toast.LENGTH_LONG).show();
+			}
+			return true;
+		} else if (itemId == R.id.action_delete) {
 
-			case R.id.action_open_file_in_external:
-				Intent newIntent = new Intent(Intent.ACTION_VIEW);
-				newIntent.setDataAndType(Uri.fromFile(new File(fileLocation)), "text/html");
-				newIntent.setFlags(newIntent.FLAG_ACTIVITY_NEW_TASK);
-				try {
-					startActivity(newIntent);
-				} catch (android.content.ActivityNotFoundException e) {
-					Toast.makeText(this, "No installed app can open HTML files", Toast.LENGTH_LONG).show();
-				}
-				return true;
-
-			case R.id.action_delete:
-
-				AlertDialog.Builder build;
-				build = new AlertDialog.Builder(ViewActivity.this);
-				build.setTitle("Delete ?");
-				build.setMessage(title);
-				build.setPositiveButton("Delete",
+			AlertDialog.Builder build;
+			build = new AlertDialog.Builder(ViewActivity.this);
+			build.setTitle("Delete ?");
+			build.setMessage(title);
+			build.setPositiveButton("Delete",
 					new DialogInterface.OnClickListener() {
 
 						public void onClick(DialogInterface dialog, int which) {
@@ -218,17 +214,17 @@ public class ViewActivity extends Activity {
 						}
 					});
 
-				build.setNegativeButton("Cancel",
+			build.setNegativeButton("Cancel",
 					new DialogInterface.OnClickListener() {
 						public void onClick(DialogInterface dialog, int which) {
 							dialog.cancel();
 						}
 					});
-				AlertDialog alert = build.create();
-				alert.show();
-				return true;
-			default:
-				return super.onOptionsItemSelected(item);
+			AlertDialog alert = build.create();
+			alert.show();
+			return true;
+		} else {
+			return super.onOptionsItemSelected(item);
 		}
 	}
 
