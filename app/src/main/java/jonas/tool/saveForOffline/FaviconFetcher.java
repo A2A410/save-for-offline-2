@@ -36,19 +36,21 @@
 
 package jonas.tool.saveForOffline;
 
-import org.jsoup.nodes.Document;
+import android.graphics.BitmapFactory;
 
-import java.io.File;
-import com.squareup.okhttp.*;
-import org.jsoup.select.*;
-import java.util.*;
-import org.jsoup.nodes.*;
-import java.net.*;
-import java.io.*;
-import java.util.regex.*;
-import android.graphics.*;
-import org.jsoup.*;
-import android.os.*;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ListIterator;
+
+import okhttp3.HttpUrl;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class FaviconFetcher {
 	private static FaviconFetcher INSTANCE = new FaviconFetcher();
@@ -103,16 +105,20 @@ public class FaviconFetcher {
 		}
 		
 		for (String path : hardcodedIconPaths) {
-			HttpUrl	url = HttpUrl.parse("http://" + HttpUrl.parse(document.baseUri()).host() + path);
-			iconUrls.add(url.toString());
+			HttpUrl url = HttpUrl.parse("http://" + HttpUrl.parse(document.baseUri()).host() + path);
+			if (url != null) {
+				iconUrls.add(url.toString());
+			}
 		}
 		
 		for (ListIterator<String> i = iconUrls.listIterator(); i.hasNext(); ) {
-			HttpUrl httpUrl = base.resolve(i.next());
-			if (httpUrl != null) {
-				i.set(httpUrl.toString());
-			} else {
-				i.remove();
+			if (base != null) {
+				HttpUrl httpUrl = base.resolve(i.next());
+				if (httpUrl != null) {
+					i.set(httpUrl.toString());
+				} else {
+					i.remove();
+				}
 			}
 		}
 		
