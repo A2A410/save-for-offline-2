@@ -35,21 +35,36 @@
  **/
 
 package jonas.tool.saveForOffline;
-import android.app.*;
-import android.os.*;
-import android.webkit.*;
-import android.view.*;
-import android.content.*;
-import android.net.*;
-import android.widget.*;
-import android.database.sqlite.*;
-import android.util.*;
-import java.io.*;
-import android.preference.*;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.database.sqlite.SQLiteDatabase;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
+import android.net.Uri;
+import android.os.Bundle;
+import android.preference.PreferenceManager;
+import android.util.Log;
+import android.view.ContextMenu;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.TextView;
+import android.widget.Toast;
 
-public class ViewActivity extends Activity {
+import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+
+import java.io.File;
+import java.util.Objects;
+
+public class ViewActivity extends AppCompatActivity {
 	private Intent incomingIntent;
 	private SharedPreferences preferences;
 	
@@ -63,27 +78,23 @@ public class ViewActivity extends Activity {
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		requestWindowFeature(Window.FEATURE_INDETERMINATE_PROGRESS);
 		
 		incomingIntent = getIntent();
 		preferences = PreferenceManager.getDefaultSharedPreferences(this);
-		
-		if (preferences.getBoolean("dark_mode", false)) {
-			setTheme(android.R.style.Theme_Holo);
-		}
 		
 		setContentView(R.layout.view_activity);	
 		
 		title = incomingIntent.getStringExtra(Database.TITLE);
 		fileLocation = incomingIntent.getStringExtra(Database.FILE_LOCATION);
 		date = incomingIntent.getStringExtra(Database.TIMESTAMP);
-		
-		getActionBar().setDisplayHomeAsUpEnabled(true);
-		getActionBar().setSubtitle(incomingIntent.getStringExtra(Database.TITLE));
 
-		setProgressBarIndeterminateVisibility(true);
+		ActionBar actionBar = getSupportActionBar();
+		if (actionBar != null) {
+			actionBar.setDisplayHomeAsUpEnabled(true);
+			actionBar.setSubtitle(incomingIntent.getStringExtra(Database.TITLE));
+		}
 
-		webview = (WebView) findViewById(R.id.webview);
+		webview = findViewById(R.id.webview);
 		setupWebView();
 		
 		invertedRendering = preferences.getBoolean("dark_mode", false);
@@ -127,7 +138,7 @@ public class ViewActivity extends Activity {
 		webview.setWebViewClient(new WebViewClient() {
 			@Override
 			public void onPageFinished(WebView view, String url){
-				setProgressBarIndeterminateVisibility(false);
+				// The indeterminate progress bar was removed, so this is no longer needed.
 			}
 			
 			@Override
@@ -166,7 +177,7 @@ public class ViewActivity extends Activity {
 		// Handle presses on the action bar items
 		int itemId = item.getItemId();
 		if (itemId == R.id.ic_action_settings) {
-			Intent settings = new Intent(getApplicationContext(), Preferences.class);
+			Intent settings = new Intent(getApplicationContext(), SettingsActivity.class);
 			startActivityForResult(settings, 1);
 			return true;
 		} else if (itemId == R.id.action_save_page_properties) {
@@ -183,7 +194,7 @@ public class ViewActivity extends Activity {
 		} else if (itemId == R.id.action_open_file_in_external) {
 			Intent newIntent = new Intent(Intent.ACTION_VIEW);
 			newIntent.setDataAndType(Uri.fromFile(new File(fileLocation)), "text/html");
-			newIntent.setFlags(newIntent.FLAG_ACTIVITY_NEW_TASK);
+			newIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 			try {
 				startActivity(newIntent);
 			} catch (android.content.ActivityNotFoundException e) {
@@ -197,29 +208,22 @@ public class ViewActivity extends Activity {
 			build.setTitle("Delete ?");
 			build.setMessage(title);
 			build.setPositiveButton("Delete",
-					new DialogInterface.OnClickListener() {
+					(dialog, which) -> {
+						SQLiteDatabase dataBase = new Database(ViewActivity.this).getWritableDatabase();
+						Intent incomingIntent2 = getIntent();
 
-						public void onClick(DialogInterface dialog, int which) {
-							SQLiteDatabase dataBase = new Database(ViewActivity.this).getWritableDatabase();
-							Intent incomingIntent2 = getIntent();
+						dataBase.delete(Database.TABLE_NAME, Database.ID + "=" + incomingIntent2.getStringExtra(Database.ID), null);
 
-							dataBase.delete(Database.TABLE_NAME, Database.ID + "=" + incomingIntent2.getStringExtra(Database.ID), null);
+						String fileLocation = incomingIntent2.getStringExtra(Database.FILE_LOCATION);
+						DirectoryHelper.deleteDirectory(new File(fileLocation).getParentFile());
 
-							String fileLocation = incomingIntent2.getStringExtra(Database.FILE_LOCATION);
-							DirectoryHelper.deleteDirectory(new File(fileLocation).getParentFile());
+						Toast.makeText(ViewActivity.this, "Saved page deleted", Toast.LENGTH_LONG).show();
 
-							Toast.makeText(ViewActivity.this, "Saved page deleted", Toast.LENGTH_LONG).show();
-
-							finish();
-						}
+						finish();
 					});
 
 			build.setNegativeButton("Cancel",
-					new DialogInterface.OnClickListener() {
-						public void onClick(DialogInterface dialog, int which) {
-							dialog.cancel();
-						}
-					});
+					(dialog, which) -> dialog.cancel());
 			AlertDialog alert = build.create();
 			alert.show();
 			return true;
@@ -233,29 +237,24 @@ public class ViewActivity extends Activity {
 		build.setTitle("Details of saved page");
 		View layout = getLayoutInflater().inflate(R.layout.properties_dialog, null);
 		build.setView(layout);
-		TextView t = (TextView) layout.findViewById(R.id.properties_dialog_text_title);
+		TextView t = layout.findViewById(R.id.properties_dialog_text_title);
 		t.setText("Title: \r\n" + title);
-		t = (TextView) layout.findViewById(R.id.properties_dialog_text_file_location);
+		t = layout.findViewById(R.id.properties_dialog_text_file_location);
 		t.setText("File location: \r\n" + fileLocation);
-		t = (TextView) layout.findViewById(R.id.properties_dialog_text_date);
+		t = layout.findViewById(R.id.properties_dialog_text_date);
 		t.setText("Date & Time saved: \r\n" + date);
-		t = (TextView) layout.findViewById(R.id.properties_dialog_text_orig_url);
+		t = layout.findViewById(R.id.properties_dialog_text_orig_url);
 		t.setText("Saved from: \r\n" + incomingIntent.getStringExtra(Database.ORIGINAL_URL));
 		build.setPositiveButton("Close",
-			new DialogInterface.OnClickListener() {
-				public void onClick(DialogInterface dialog, int which) {
+				(dialog, which) -> {
 
-				}
-			});
-		build.setNeutralButton("Copy file location to clipboard", new DialogInterface.OnClickListener() {
-				@Override
-				public void onClick(DialogInterface dialog, int which) {
-					ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE); 
-					ClipData clip = ClipData.newPlainText(webview.getTitle(), fileLocation);
-					clipboard.setPrimaryClip(clip);
-					Toast.makeText(ViewActivity.this, "File location copied to clipboard", Toast.LENGTH_SHORT).show();
-					
-				}
+				});
+		build.setNeutralButton("Copy file location to clipboard", (dialog, which) -> {
+			ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+			ClipData clip = ClipData.newPlainText(webview.getTitle(), fileLocation);
+			clipboard.setPrimaryClip(clip);
+			Toast.makeText(ViewActivity.this, "File location copied to clipboard", Toast.LENGTH_SHORT).show();
+
 		});
 		AlertDialog alert = build.create();
 		alert.show();
