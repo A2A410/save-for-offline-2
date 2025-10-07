@@ -1,27 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-	<resources>
-		<style name="actionBarLightRedTheme" parent="@android:style/Theme.Holo.Light" >
-			<item name="android:actionBarStyle">@style/themeLightRed</item>
-			<item name="android:actionModeStyle">@style/themeLightRed</item>
-			<item name="android:popupMenuStyle">@style/popupMenu</item>	
-			<item name="android:windowTranslucentStatus">true</item>
-			<item name="android:fitsSystemWindows">true</item>
-		</style>
-		
-		<style name="themeLightRed" parent="@android:style/Widget.Holo.Light.ActionBar.Solid">
-			 <item name="android:background">#FFC107</item>
-		</style>
-		
-		<style name="popupMenu" parent="@android:Widget.Holo.Light.ListPopupWindow">
-			  <item name="android:background">#FFC107</item>
-		</style>
-		
-		<style name="themeLightRedButton" parent="@android:Widget.Holo.Light.Button">
-			  <item name="android:background">#FFC107</item>
-		</style>
-		
-		
-		
-		
-		
-	</resources>
+<resources>
+	<!--
+         Base application theme, dependent on API level. This theme is replaced
+         by AppBaseTheme from res/values-vXX/styles.xml on newer devices.
+    -->
+	<style name="AppBaseTheme" parent="Theme.AppCompat.Light">
+		<!--
+            Theme customizations available in newer API levels can go in
+            res/values-vXX/styles.xml, while customizations related to
+            backward-compatibility can go here.
+        -->
+	</style>
+
+	<!-- Application theme. -->
+	<style name="AppTheme" parent="AppBaseTheme">
+		<!-- All customizations that are NOT specific to a particular API-level can go here. -->
+	</style>
+
+	<style name="Theme.Theme_main_yellow" parent="Theme.AppCompat.Light.DarkActionBar">
+		<item name="android:actionBarStyle">@style/action_bar_theme</item>
+		<item name="actionBarStyle">@style/action_bar_theme</item>
+	</style>
+
+	<style name="action_bar_theme" parent="Widget.AppCompat.Light.ActionBar.Solid.Inverse">
+		<item name="android:background">#FFC107</item>
+		<item name="background">#FFC107</item>
+	</style>
+
+</resources>
