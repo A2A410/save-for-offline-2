@@ -37,11 +37,6 @@
 
 package jonas.tool.saveForOffline;
 
-import com.squareup.okhttp.Cache;
-import com.squareup.okhttp.OkHttpClient;
-import com.squareup.okhttp.Request;
-import com.squareup.okhttp.Response;
-
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -64,11 +59,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import de.l3s.boilerpipe.extractors.ArticleExtractor;
+import okhttp3.Cache;
+import okhttp3.Call;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+
 
 public class PageSaver {
     private EventCallback eventCallback;
 
-    private OkHttpClient client = new OkHttpClient();
+    private OkHttpClient client;
     private final String HTTP_REQUEST_TAG = "TAG";
 
     private boolean isCancelled = false;
@@ -76,10 +78,6 @@ public class PageSaver {
 
     // filesToGrab - maintains all the links to files (eg images, scripts) which we are going to grab/download
     private List<String> filesToGrab = new ArrayList<String>();
-    //framesToGrab - list of html frame files to download, as we parse these recursively
-    private List<String> framesToGrab = new ArrayList<String>();
-    //cssToGrab - list of all css files to download and parse, these need to be parsed to extract urls
-    private List<String> cssToGrab = new ArrayList<String>();
 	
     private String title = "";
 	private String pageIconUrl = "";
@@ -99,23 +97,31 @@ public class PageSaver {
     public PageSaver(EventCallback callback) {
         this.eventCallback = callback;
 		
-		client.setConnectTimeout(20, TimeUnit.SECONDS);
-		client.setReadTimeout(20, TimeUnit.SECONDS);
-		client.setWriteTimeout(20, TimeUnit.SECONDS);
-		
-		client.setFollowRedirects(true);
-		client.setFollowSslRedirects(true);
+		client = new OkHttpClient.Builder()
+                .connectTimeout(20, TimeUnit.SECONDS)
+                .readTimeout(20, TimeUnit.SECONDS)
+                .writeTimeout(20, TimeUnit.SECONDS)
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .build();
     }
 
     public void cancel() {
         this.isCancelled = true;
-        client.cancel(HTTP_REQUEST_TAG);
+        for (Call call : client.dispatcher().queuedCalls()) {
+            if (HTTP_REQUEST_TAG.equals(call.request().tag())) {
+                call.cancel();
+            }
+        }
+        for (Call call : client.dispatcher().runningCalls()) {
+            if (HTTP_REQUEST_TAG.equals(call.request().tag())) {
+                call.cancel();
+            }
+        }
     }
 	
 	public void resetState () {
 		filesToGrab.clear();
-		framesToGrab.clear();
-		cssToGrab.clear();
 		
 		title = "";
 		pageIconUrl = "";
@@ -137,22 +143,10 @@ public class PageSaver {
             return false;
         }
 
-        //download main html and parse -- isExtra parameter should be false
-        boolean success = downloadHtmlAndParseLinks(url, outputDirPath, false);
+        //download main html and parse
+        boolean success = downloadAndDistillPage(url, outputDirPath);
         if (isCancelled || !success) {
 			return false;
-		}
-
-        //download and parse html frames - use iterator because our list may be modified as frames can contain other frames
-		for (Iterator<String> i = framesToGrab.iterator(); i.hasNext();) {
-			downloadHtmlAndParseLinks(i.next(), outputDirPath, true);
-			if (isCancelled) return true;
-		}
-
-        //download and parse css files
-		for (Iterator<String> i = cssToGrab.iterator(); i.hasNext();) {
-			if (isCancelled) return true;
-            downloadCssAndParse(i.next(), outputDirPath);
 		}
 		
 		ThreadPoolExecutor pool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().availableProcessors(), 60, TimeUnit.SECONDS, new BlockingDownloadTaskQueue<Runnable>());
@@ -179,60 +173,32 @@ public class PageSaver {
 		return success;
     }
 
-    private boolean downloadHtmlAndParseLinks(final String url, final String outputDir, final boolean isExtra) {
-        //isExtra should be true when saving a html frame file.
-        String filename;
-
-        if (isExtra) {
-            filename = getFileName(url);
-        } else {
-            filename = indexFileName;
-        }
-
+    private boolean downloadAndDistillPage(final String url, final String outputDir) {
+        String filename = indexFileName;
         String baseUrl = url;
         if (url.endsWith("/")) {
             baseUrl = url + filename;
         }
 
         try {
-			eventCallback.onProgressMessage(isExtra ? "Getting HTML frame file: " + filename : "Getting main HTML file");
+			eventCallback.onProgressMessage("Getting HTML file");
             String htmlContent = getStringFromUrl(url);
-			eventCallback.onProgressMessage(isExtra ? "Processing HTML frame file: " + filename: "Processing main HTML file");
-            htmlContent = parseHtmlForLinks(htmlContent, baseUrl);
 
-			eventCallback.onProgressMessage(isExtra ? "Saving HTML frame file: " + filename: "Saving main HTML file");
+			eventCallback.onProgressMessage("Extracting content...");
+            String extractedContent = ArticleExtractor.INSTANCE.getText(htmlContent);
+
+			eventCallback.onProgressMessage("Processing extracted content...");
+            String finalHtml = parseDistilledHtml(extractedContent, baseUrl);
+
+			eventCallback.onProgressMessage("Saving main HTML file");
             File outputFile = new File(outputDir, filename);
-            saveStringToFile(htmlContent, outputFile);
+            saveStringToFile(finalHtml, outputFile);
             return true;
 
-        } catch (IOException | IllegalStateException e) {
-			if (isExtra) {
-				eventCallback.onError(e);
-			} else {
-				eventCallback.onFatalError(e, url);
-			}
+        } catch (Exception e) {
+			eventCallback.onFatalError(e, url);
 			e.printStackTrace();
             return false;
-        }
-    }
-
-    private void downloadCssAndParse(final String url, final String outputDir) {
-
-        String filename = getFileName(url);
-        File outputFile = new File(outputDir, filename);
-
-        try {
-			eventCallback.onProgressMessage("Getting CSS file: " + filename);
-            String cssContent = getStringFromUrl(url);
-			
-			eventCallback.onProgressMessage("Processing CSS file: " + filename);
-            cssContent = parseCssForLinks(cssContent, url);
-			
-			eventCallback.onProgressMessage("Saving CSS file: " + filename);
-            saveStringToFile(cssContent, outputFile);
-        } catch (IOException e) {
-			eventCallback.onError(e);
-            e.printStackTrace();
         }
     }
 
@@ -323,8 +289,7 @@ public class PageSaver {
         fos.close();
     }
 
-    private String parseHtmlForLinks(String htmlToParse, String baseUrl) {
-        //get all links from this webpage and add them to LinksToVisit ArrayList
+    private String parseDistilledHtml(String htmlToParse, String baseUrl) {
         Document document = Jsoup.parse(htmlToParse, baseUrl);
         document.outputSettings().escapeMode(Entities.EscapeMode.extended);
 		
@@ -341,100 +306,7 @@ public class PageSaver {
 		eventCallback.onProgressMessage("Processing HTML...");
 
         String urlToGrab;
-
         Elements links;
-
-        if (getOptions().saveFrames()) {
-            links = document.select("frame[src]");
-            eventCallback.onLogMessage("Got " + links.size() + " frames");
-            for (Element link : links) {
-                urlToGrab = link.attr("abs:src");
-                addLinkToList(urlToGrab, framesToGrab);
-                String replacedURL = getFileName(urlToGrab);
-                link.attr("src", replacedURL);
-            }
-
-            links = document.select("iframe[src]");
-            eventCallback.onLogMessage("Got " + links.size() + " iframes");
-            for (Element link : links) {
-                urlToGrab = link.attr("abs:src");
-
-                addLinkToList(urlToGrab, framesToGrab);
-
-                String replacedURL = getFileName(urlToGrab);
-                link.attr("src", replacedURL);
-            }
-        }
-
-        if (getOptions().saveOther()) {
-            // Get all the links
-            links = document.select("link[href]");
-            eventCallback.onLogMessage("Got " + links.size() + " link elements with a href attribute");
-            for (Element link : links) {
-                urlToGrab = link.attr("abs:href");
-
-                //if it is css, parse it later to extract urls (images referenced from "background" attributes for example)
-                if (link.attr("rel").equals("stylesheet")) {
-                    cssToGrab.add(link.attr("abs:href"));
-                } else {
-                    addLinkToList(urlToGrab, filesToGrab);
-                }
-
-                String replacedURL = getFileName(urlToGrab);
-                link.attr("href", replacedURL);
-            }
-
-            //get links in embedded css also, and modify the links to point to local files
-            links = document.select("style[type=text/css]");
-            eventCallback.onLogMessage("Got " + links.size() + " embedded stylesheets, parsing CSS");
-            for (Element link : links) {
-                String cssToParse = link.data();
-                String parsedCss = parseCssForLinks(cssToParse, baseUrl);
-                if (link.dataNodes().size() != 0) {
-                    link.dataNodes().get(0).setWholeData(parsedCss);
-                }
-            }
-			
-			//get input types with an image type
-			links = document.select("input[type=image]");
-			eventCallback.onLogMessage("Got " + links.size() + " input elements with type = image");
-			for (Element link : links) {
-                urlToGrab = link.attr("abs:src");
-                addLinkToList(urlToGrab, filesToGrab);
-                String replacedURL = getFileName(urlToGrab);
-                link.attr("src", replacedURL);
-            }
-			
-			//get everything which has a background attribute
-			links = document.select("[background]");
-			eventCallback.onLogMessage("Got " + links.size() + " elements with a background attribute");
-			for (Element link : links) {
-                urlToGrab = link.attr("abs:src");
-                addLinkToList(urlToGrab, filesToGrab);
-                String replacedURL = getFileName(urlToGrab);
-                link.attr("src", replacedURL);
-            }
-
-            links = document.select("[style]");
-            eventCallback.onLogMessage("Got " + links.size() + " elements with a style attribute, parsing CSS");
-            for (Element link : links) {
-                String cssToParse = link.attr("style");
-                String parsedCss = parseCssForLinks(cssToParse, baseUrl);
-                link.attr("style", parsedCss);
-            }
-
-        }
-
-        if (getOptions().saveScripts()) {
-            links = document.select("script[src]");
-            eventCallback.onLogMessage("Got " + links.size() + " script elements");
-            for (Element link : links) {
-                urlToGrab = link.attr("abs:src");
-                addLinkToList(urlToGrab, filesToGrab);
-                String replacedURL = getFileName(urlToGrab);
-                link.attr("src", replacedURL);
-            }
-        }
 
         if (getOptions().saveImages()) {
             links = document.select("img[src]");
@@ -445,46 +317,11 @@ public class PageSaver {
 
                 String replacedURL = getFileName(urlToGrab);
                 link.attr("src", replacedURL);
-				link.removeAttr("srcset"); //we don't use this for now, so remove it.
-            }
-			
-			links = document.select("img[data-canonical-src]");
-            eventCallback.onLogMessage("Got " + links.size() + " image elements, w. data-canonical-src");
-            for (Element link : links) {
-                urlToGrab = link.attr("abs:data-canonical-src");
-                addLinkToList(urlToGrab, filesToGrab);
-
-                String replacedURL = getFileName(urlToGrab);
-                link.attr("data-canonical-src", replacedURL);
-				link.removeAttr("srcset"); //we don't use this for now, so remove it.
-            }
-        }
-
-        if (getOptions().saveVideo()) {
-            //video src is sometimes in a child element
-            links = document.select("video:not([src])");
-            eventCallback.onLogMessage("Got " + links.size() + " video elements without src attribute");
-            for (Element link : links.select("[src]")) {
-                urlToGrab = link.attr("abs:src");
-                addLinkToList(urlToGrab, filesToGrab);
-
-                String replacedURL = getFileName(urlToGrab);
-                link.attr("src", replacedURL);
-            }
-
-            links = document.select("video[src]");
-            eventCallback.onLogMessage("Got " + links.size() + " video elements");
-            for (Element link : links) {
-                urlToGrab = link.attr("abs:src");
-                addLinkToList(urlToGrab, filesToGrab);
-
-                String replacedURL = getFileName(urlToGrab);
-                link.attr("src", replacedURL);
+				link.removeAttr("srcset");
             }
         }
 
         if (getOptions().makeLinksAbsolute()) {
-            //make links absolute, so they are not broken
             links = document.select("a[href]");
             eventCallback.onLogMessage("Making " + links.size() + " links absolute");
             for (Element link : links) {
@@ -493,40 +330,6 @@ public class PageSaver {
             }
         }
         return document.outerHtml();
-    }
-
-    private String parseCssForLinks(String cssToParse, String baseUrl) {
-
-        String patternString = "url(\\s*\\(\\s*['\"]*\\s*)(.*?)\\s*['\"]*\\s*\\)"; //I hate regexes...
-
-        Pattern pattern = Pattern.compile(patternString);
-        Matcher matcher = pattern.matcher(cssToParse);
-
-        eventCallback.onLogMessage("Parsing CSS");
-
-        //find everything inside url(" ... ")
-        while (matcher.find()) {
-            if (matcher.group().replaceAll(patternString, "$2").contains("/")) {
-                cssToParse = cssToParse.replace(matcher.group().replaceAll(patternString, "$2"), getFileName(matcher.group().replaceAll(patternString, "$2")));
-
-            }
-            addLinkToList(matcher.group().replaceAll(patternString, "$2").trim(), baseUrl, filesToGrab);
-        }
-
-        // find css linked with @import  -  needs testing
-        //todo: test this to see if it actually works
-        String importString = "@(import\\s*['\"])()([^ '\"]*)";
-        pattern = Pattern.compile(importString);
-        matcher = pattern.matcher(cssToParse);
-        matcher.reset();
-		
-        while (matcher.find()) {
-            if (matcher.group().replaceAll(patternString, "$2").contains("/")) {
-                cssToParse = cssToParse.replace(matcher.group().replaceAll(patternString, "$2"), getFileName(matcher.group().replaceAll(patternString, "$2")));
-            }
-            addLinkToList(matcher.group().replaceAll(patternString, "$2").trim(), baseUrl, cssToGrab);
-        }
-        return cssToParse;
     }
 	
 	private boolean isLinkValid (String url) {
@@ -579,7 +382,6 @@ public class PageSaver {
 
         filename = fileNameReplacementPattern.matcher(filename).replaceAll("_");
         filename = filename.substring(0, Math.min(200, filename.length()));
-        ;
 
         return filename;
     }
@@ -617,22 +419,18 @@ public class PageSaver {
 	
 	class Options {
         private boolean makeLinksAbsolute = true;
-
         private boolean saveImages = true;
-        private boolean saveFrames = true;
-        private boolean saveOther = true;
-        private boolean saveScripts = true;
-        private boolean saveVideo = false;
-
         private String userAgent = " ";
 
 		public void setCache (File cacheDirectory, long maxCacheSize) {
-			Cache cache = (new Cache(cacheDirectory, maxCacheSize));
-			client.setCache(cache);
+			Cache cache = new Cache(cacheDirectory, maxCacheSize);
+			client = client.newBuilder().cache(cache).build();
 		}
 
 		public void clearCache() throws IOException {
-			client.getCache().evictAll();
+			if (client.cache() != null) {
+				client.cache().evictAll();
+			}
 		}
 
         public String getUserAgent() {
@@ -658,38 +456,6 @@ public class PageSaver {
         public void saveImages(final boolean saveImages) {
             this.saveImages = saveImages;
         }
-
-        public boolean saveFrames() {
-            return saveFrames;
-        }
-
-        public void saveFrames(final boolean saveFrames) {
-            this.saveFrames = saveFrames;
-        }
-
-        public boolean saveScripts() {
-            return saveScripts;
-        }
-
-        public void saveScripts(final boolean saveScripts) {
-            this.saveScripts = saveScripts;
-        }
-
-        public boolean saveOther() {
-            return saveOther;
-        }
-
-        public void saveOther(final boolean saveOther) {
-            this.saveOther = saveOther;
-        }
-
-        public boolean saveVideo() {
-            return saveVideo;
-        }
-
-        public void saveVideo(final boolean saveVideo) {
-            this.saveVideo = saveVideo;
-        }
     }
 }
 
@@ -708,4 +474,3 @@ interface EventCallback {
 	
 	public void onFatalError (Throwable error, String pageUrl);
 }
-
