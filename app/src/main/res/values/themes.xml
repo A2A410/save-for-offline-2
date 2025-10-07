@@ -17,14 +17,61 @@
 		<!-- All customizations that are NOT specific to a particular API-level can go here. -->
 	</style>
 
-	<style name="Theme.Theme_main_yellow" parent="Theme.AppCompat.Light.DarkActionBar">
-		<item name="android:actionBarStyle">@style/action_bar_theme</item>
-		<item name="actionBarStyle">@style/action_bar_theme</item>
+    <style name="Theme.Theme_main_yellow" parent="Theme.AppCompat.Light">
+        <item name="actionBarItemBackground">@drawable/selectable_background_theme_main_yellow</item>
+        <item name="popupMenuStyle">@style/PopupMenu.Theme_main_yellow</item>
+        <item name="dropDownListViewStyle">@style/DropDownListView.Theme_main_yellow</item>
+        <item name="actionDropDownStyle">@style/DropDownNav.Theme_main_yellow</item>
+        <item name="actionBarStyle">@style/ActionBar.Solid.Theme_main_yellow</item>
+		<item name="actionModeStyle">@style/ActionBar.Solid.Theme_main_yellow</item>
+        <item name="actionModeSplitBackground">@drawable/cab_background_bottom_theme_main_yellow</item>
+        <item name="actionModeCloseButtonStyle">@style/ActionButton.CloseMode.Theme_main_yellow</item>
+		<item name="alertDialogTheme">@style/Theme_Dialog_Alert</item>
+    </style>
+
+	<style name="Theme_Dialog_Alert" parent="Theme.AppCompat.Light.Dialog.Alert">
+		<item name="borderlessButtonStyle">@style/Widget.Theme.Button.Borderless</item>
+		<item name="buttonBarStyle">@style/Theme.ButtonBar.AlertDialog</item>
 	</style>
 
-	<style name="action_bar_theme" parent="Widget.AppCompat.Light.ActionBar.Solid.Inverse">
-		<item name="android:background">#FFC107</item>
-		<item name="background">#FFC107</item>
+	<style name="Widget.Theme.Button.Borderless" parent="Widget.AppCompat.Button.Borderless">
+		<item name="android:background">@drawable/normal_button_selector</item>
 	</style>
+
+	<style name="TextAppearance.Theme.DialogButton" parent="TextAppearance.AppCompat.Medium">
+		<item name="android:textColor">@android:color/holo_blue_light</item>
+	</style>
+
+	<style name="Theme.ButtonBar.AlertDialog" parent="Widget.AppCompat.ButtonBar.AlertDialog">
+	</style>
+
+    <style name="ActionBar.Solid.Theme_main_yellow" parent="Widget.AppCompat.Light.ActionBar.Solid">
+        <item name="background">@drawable/ab_background_textured_theme_main_yellow</item>
+        <item name="backgroundStacked">@drawable/ab_stacked_solid_theme_main_yellow</item>
+        <item name="backgroundSplit">@drawable/ab_background_textured_theme_main_yellow</item>
+        <item name="progressBarStyle">@style/ProgressBar.Theme_main_yellow</item>
+    </style>
+
+    <style name="PopupMenu.Theme_main_yellow" parent="Widget.AppCompat.Light.ListPopupWindow">
+        <item name="android:popupBackground">@drawable/menu_dropdown_panel_theme_main_yellow</item>
+    </style>
+
+    <style name="DropDownListView.Theme_main_yellow" parent="Widget.AppCompat.ListView.DropDown">
+        <item name="android:listSelector">@drawable/selectable_background_theme_main_yellow</item>
+    </style>
+
+    <style name="DropDownNav.Theme_main_yellow" parent="Widget.AppCompat.Spinner">
+        <item name="android:background">@drawable/spinner_background_ab_theme_main_yellow</item>
+        <item name="android:popupBackground">@drawable/menu_dropdown_panel_theme_main_yellow</item>
+        <item name="android:dropDownSelector">@drawable/selectable_background_theme_main_yellow</item>
+    </style>
+
+    <style name="ProgressBar.Theme_main_yellow" parent="Widget.AppCompat.ProgressBar.Horizontal">
+        <item name="android:progressDrawable">@drawable/progress_horizontal_theme_main_yellow</item>
+    </style>
+
+    <style name="ActionButton.CloseMode.Theme_main_yellow" parent="Widget.AppCompat.ActionButton.CloseMode">
+        <item name="android:background">@drawable/btn_cab_done_theme_main_yellow</item>
+    </style>
 
 </resources>
